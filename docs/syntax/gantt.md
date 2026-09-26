@@ -320,6 +320,27 @@ The following formatting options are supported:
 
 More info in: <https://day.js.org/docs/en/parse/string-format/>
 
+Square brackets escape literal text, as in `YYYY-MM-DD[T]HH:mm`. A format that wraps the whole
+date in brackets is taken literally too, so the dates of your tasks can carry the brackets:
+
+```markdown
+dateFormat [[YYYY-MM-DD]]
+```
+
+```mermaid-example
+gantt
+    dateFormat [[YYYY-MM-DD]]
+    section Goal
+    This is my test: [[2020-05-29]], 1d
+```
+
+```mermaid
+gantt
+    dateFormat [[YYYY-MM-DD]]
+    section Goal
+    This is my test: [[2020-05-29]], 1d
+```
+
 ### Output date format on the axis
 
 The default output date format is `YYYY-MM-DD`. You can define your custom `axisFormat`, like `2020-Q1` for the first quarter of the year 2020.

@@ -539,6 +539,52 @@ describe('when using the ganttDb', function () {
     expect(ganttDb.getTodayMarker()).toEqual(expected);
   });
 
+  describe('when the date format contains square brackets (issue #1577)', function () {
+    it('should parse dates wrapped in double brackets', function () {
+      ganttDb.setDateFormat('[[YYYY-MM-DD]]');
+      ganttDb.addSection('Goal');
+      ganttDb.addTask('This is my test', '[[2019-02-01]], 1d');
+
+      const tasks = ganttDb.getTasks();
+      expect(tasks[0].startTime).toEqual(dayjs('2019-02-01', 'YYYY-MM-DD').toDate());
+      expect(tasks[0].endTime).toEqual(dayjs('2019-02-02', 'YYYY-MM-DD').toDate());
+    });
+
+    it('should parse dates wrapped in single brackets', function () {
+      ganttDb.setDateFormat('[YYYY-MM-DD]');
+      ganttDb.addTask('test1', 'id1,[2019-02-01],[2019-02-03]');
+
+      const tasks = ganttDb.getTasks();
+      expect(tasks[0].startTime).toEqual(dayjs('2019-02-01', 'YYYY-MM-DD').toDate());
+      expect(tasks[0].endTime).toEqual(dayjs('2019-02-03', 'YYYY-MM-DD').toDate());
+    });
+
+    it('should parse a bracketed date followed by a duration', function () {
+      ganttDb.setDateFormat('[[YYYY-MM-DD]]');
+      ganttDb.addTask('test1', 'id1,[[2019-02-01]],2d');
+
+      const tasks = ganttDb.getTasks();
+      expect(tasks[0].startTime).toEqual(dayjs('2019-02-01', 'YYYY-MM-DD').toDate());
+      expect(tasks[0].endTime).toEqual(dayjs('2019-02-03', 'YYYY-MM-DD').toDate());
+    });
+
+    it('should keep escaping literal text the dayjs way', function () {
+      ganttDb.setDateFormat('YYYY-MM-DD[T]HH:mm');
+      ganttDb.addTask('test1', 'id1,2019-02-01T08:30,1h');
+
+      const tasks = ganttDb.getTasks();
+      expect(tasks[0].startTime).toEqual(dayjs('2019-02-01T08:30').toDate());
+      expect(tasks[0].endTime).toEqual(dayjs('2019-02-01T09:30').toDate());
+    });
+
+    it('should reject a date that does not carry the brackets of the format', function () {
+      ganttDb.setDateFormat('[[YYYY-MM-DD]]');
+      ganttDb.addTask('test1', 'id1,[2019-02-01],1d');
+
+      expect(() => ganttDb.getTasks()).toThrowError('Invalid date:[2019-02-01]');
+    });
+  });
+
   it('should reject dates with ridiculous years', function () {
     ganttDb.setDateFormat('YYYYMMDD');
     ganttDb.addTask('test1', 'id1,202304,1d');

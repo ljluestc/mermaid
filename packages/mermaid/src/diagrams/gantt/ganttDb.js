@@ -232,7 +232,7 @@ const checkTaskDates = function (task, dateFormat, excludes, includes) {
   if (task.startTime instanceof Date) {
     startTime = dayjs(task.startTime);
   } else {
-    startTime = dayjs(task.startTime, dateFormat, true);
+    startTime = parseDateWithFormat(task.startTime, dateFormat);
   }
   startTime = startTime.add(1, 'd');
 
@@ -240,7 +240,7 @@ const checkTaskDates = function (task, dateFormat, excludes, includes) {
   if (task.endTime instanceof Date) {
     originalEndTime = dayjs(task.endTime);
   } else {
-    originalEndTime = dayjs(task.endTime, dateFormat, true);
+    originalEndTime = parseDateWithFormat(task.endTime, dateFormat);
   }
   const [fixedEndTime, renderEndTime] = fixTaskDates(
     startTime,
@@ -302,6 +302,61 @@ const warnAboutUnknownTaskIds = function (keyword, ids) {
   );
 };
 
+/**
+ * Parses a date string with a dayjs format, additionally accepting square brackets in the
+ * format as literal characters.
+ *
+ * dayjs (like moment) uses `[...]` to escape literal text in a format, and its tokenizer has
+ * no way of expressing a literal `[` or `]`, so a format that wraps the date in brackets —
+ * `dateFormat [[YYYY-MM-DD]]`, for instance — can not be written at all. Formats that dayjs
+ * parses successfully keep their dayjs meaning; only when strict parsing fails are the
+ * brackets retried as literal text around a single date pattern.
+ *
+ * @param {string} str - The date string to parse.
+ * @param {string} dateFormat - The format to parse `str` with.
+ * @returns {dayjs.Dayjs} The parsed date, invalid if `str` does not match `dateFormat`.
+ * @see https://github.com/mermaid-js/mermaid/issues/1577
+ */
+const parseDateWithFormat = function (str, dateFormat) {
+  const parsedDate = dayjs(str, dateFormat, true);
+  if (parsedDate.isValid() || !/[[\]]/.test(dateFormat)) {
+    return parsedDate;
+  }
+
+  // Runs of square brackets end up on the odd indexes, the rest of the format on the even ones
+  const parts = dateFormat.split(/([[\]]+)/);
+  let prefix = '';
+  let suffix = '';
+  let pattern;
+  for (const [i, part] of parts.entries()) {
+    if (i % 2 === 1) {
+      // A run of square brackets, which has to show up verbatim in `str`
+      if (pattern === undefined) {
+        prefix += part;
+      } else {
+        suffix += part;
+      }
+    } else if (part !== '') {
+      if (pattern !== undefined) {
+        // Formats holding more than one date pattern, e.g. `[YYYY][-MM-DD]`, are ambiguous
+        return parsedDate;
+      }
+      pattern = part;
+    }
+  }
+
+  if (
+    pattern === undefined ||
+    str.length < prefix.length + suffix.length ||
+    !str.startsWith(prefix) ||
+    !str.endsWith(suffix)
+  ) {
+    return parsedDate;
+  }
+
+  return dayjs(str.slice(prefix.length, str.length - suffix.length), pattern, true);
+};
+
 const getStartDate = function (prevTime, dateFormat, str) {
   str = str.trim();
 
@@ -348,7 +403,7 @@ const getStartDate = function (prevTime, dateFormat, str) {
   }
 
   // Check for actual date set using dayjs strict parsing
-  let mDate = dayjs(str, dateFormat.trim(), true);
+  let mDate = parseDateWithFormat(str, dateFormat.trim());
   if (mDate.isValid()) {
     return mDate.toDate();
   } else {
@@ -442,7 +497,7 @@ const getEndDate = function (prevTime, dateFormat, str, inclusive = false) {
   }
 
   // check for actual date
-  let parsedDate = dayjs(str, dateFormat.trim(), true);
+  let parsedDate = parseDateWithFormat(str, dateFormat.trim());
   if (parsedDate.isValid()) {
     if (inclusive) {
       parsedDate = parsedDate.add(1, 'd');
